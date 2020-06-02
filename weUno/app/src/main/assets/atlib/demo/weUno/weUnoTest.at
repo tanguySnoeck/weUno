@@ -1,15 +1,11 @@
 import /.at.unit.test;
 import /.at.support.timer;
 import /.at.lang.futures exclude seconds,minutes,millisec;
-
 enableFutures(false);
 
 def weUnoTest(){
     extend: UnitTest.new("weUnoTest", false) with: {
-        def testAsyncSetPlayerPositions() {
-            //def instance1 := ~.weUno.makeWeUno();
-            //def instance2 := ~.weUno.makeWeUno();
-
+        def testAsyncSetPlayerDisovery() {
             def instance1 := actor: {
                 def weUno := ~.weUno.makeWeUno();
 
