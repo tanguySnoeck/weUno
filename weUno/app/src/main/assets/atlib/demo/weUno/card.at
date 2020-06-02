@@ -1,0 +1,12 @@
+object: {
+
+    def Card := isolate: {
+        def color := nil;
+        def action := nil;
+
+        def init(color, action) {
+            self.color := color;
+            self.action := action;
+        }
+    };
+}

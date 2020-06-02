@@ -1,0 +1,578 @@
+import /.at.lang.totam;
+import /.at.lang.futures;
+
+enableFutures(false);
+
+def log(text) {
+  Android.Log.i("weUno", text);
+};
+
+deftype Player;
+
+def makeWeUno(userId := /.at.support.util.randomNumberBetween(0, 125)) {
+
+  def otherPlayers := []; // stores remote players.
+  def gui;
+  def playerIds := [];
+  def startGameReqs := jlobby.java.util.HashMap.new(4);
+  def startTime;
+  def JCard := jlobby.edu.vub.at.weuno.Card;
+  def playerNb := 0;
+  def gameStarted := false;
+  def nextPlayer := nil;
+  def turnCounter := 0;
+  def clockwise := true;
+  def isFirst := false;
+  def startTimes := [];
+  def topUno := false;
+  def rightUno := false;
+  def leftUno := false;
+  def references := jlobby.java.util.HashMap.new(4);
+  def positions := jlobby.java.util.HashMap.new(4);
+  def uno := false;
+  def cardNb := 3;
+  def deck := nil;
+
+  def Card := isolate: {
+    def color := nil;
+    def action := nil;
+
+    def init(color, action) {
+        self.color := color;
+        self.action := action;
+    }
+  };
+
+  def setPlayerPositions() {
+    log("setplayerspositions");
+    def i := 1;
+
+    while: {playerIds[i] != userId} do: {
+        log(i.toText());
+        i := i.inc();
+    };
+
+    if: (i == 1) then: {
+        positions.put("bottom", playerIds[1]);
+        positions.put("top", playerIds[2]);
+
+        if: playerNb > 2 then: {
+            positions.put("left", playerIds[3]);
+        };
+
+        if: playerNb == 4 then: {
+            positions.put("right", playerIds[4]);
+        }
+    };
+
+    if: (i == 2) then: {
+        positions.put("top", playerIds[1]);
+        positions.put("bottom", playerIds[2]);
+
+        if: playerNb > 2 then: {
+            positions.put("right", playerIds[3]);
+        };
+
+        if: playerNb == 4 then: {
+            positions.put("left", playerIds[4]);
+        }
+    };
+
+    if: (i == 3) then: {
+        positions.put("right", playerIds[1]);
+        positions.put("left", playerIds[2]);
+
+        if: playerNb > 2 then: {
+            positions.put("bottom", playerIds[3]);
+        };
+
+        if: playerNb == 4 then: {
+            positions.put("top", playerIds[4]);
+        }
+    };
+
+    if: (i == 4) then: {
+        positions.put("left", playerIds[1]);
+        positions.put("right", playerIds[2]);
+
+        if: playerNb > 2 then: {
+            positions.put("top", playerIds[3]);
+        };
+
+        if: playerNb == 4 then: {
+            positions.put("bottom", playerIds[4]);
+        }
+    };
+  };
+
+  def setDeckView() {
+    if: ((deck != nil).and:{gameStarted}) then: {
+        log("set deck view ok");
+        def jcards := [];
+
+        deck.each:{ |c|
+            def card := JCard.new(c.color, c.action);
+            jcards := jcards + [card];
+        };
+
+        gui.setDeck(jcards);
+    };
+  };
+
+  def localInterface := object: {
+
+    def updateGUI(newActivity) {
+        gui := newActivity;
+        gameStarted := true;
+        log("update gui");
+
+        setDeckView();
+    };
+
+    def startGame() {
+        startGameReqs.put(userId, true);
+
+        if: (startGameReqs.size() == otherPlayers.length + 1) then: {
+            isFirst := gui.compareStartTimes(startTimes);
+
+            if: isFirst then:{
+                log("is first, sending everyone my list of ids");
+                setPlayerPositions();
+                otherPlayers.each: { |player|
+                    player<-setPlayerIds(playerIds)
+                };
+            };
+
+            gui.startGame();
+            log("everyone agreed to start the game");
+        };
+
+        otherPlayers.each: { |player|
+            player<-startGame(userId);
+        }
+    };
+
+    def endRound() {
+        def totalPoints := 0;
+        def i := 0;
+
+        when: { |result|
+            def [future, resolver] := makeFuture();
+            otherPlayers.each: { |player|
+                when: player<-getPoints()@FutureMessage becomes: { |points|
+                    i := i + i.inc();
+                    totalPoints := totalPoints + points;
+
+                    if: (i == otherPlayers.length) then: {
+                        resolver.resolve(totalPoints);
+                    };
+                }
+            };
+
+            future
+        }.escape() @FutureMessage becomes: { |points|
+            totalPoints := points;
+            gui.makeToast("You won the round with " + totalPoints + " points !");
+        }
+
+    };
+
+    def setColor(color){
+        otherPlayers.each: { |player|
+            player<-setColor(color)
+        }
+    };
+
+    def sendNotification(message) {
+        otherPlayers.each: { |player|
+            player<-sendNotification(message);
+        }
+    };
+
+    def checkUno(position) {
+        def id := positions.get(position);
+        def player := references.get(id);
+
+        when: player<-checkUno()@FutureMessage becomes: { |response|
+            if: response then: {
+                gui.makeToast("Well tried")
+            } else: {
+                gui.makeToast("He got what he fucking diserved")
+            }
+        }
+    };
+
+    def makeNextPlayerDrawCards(nbOfCards) {
+        turnCounter := turnCounter.inc() % otherPlayers.length;
+        nextPlayer := otherPlayers[turnCounter + 1];
+        nextPlayer<-drawCards(nbOfCards);
+    };
+
+    def setStartTime(date) {
+        startTime := date;
+    };
+
+    def broadCastDeck(deck) {
+        def array := deck.cards.toArray();
+        def atdeck := [];
+
+        array.each: { |card|
+            def atcard := Card.new(card.getColor(), card.getAction());
+            atdeck := atdeck + [atcard];
+        };
+
+        otherPlayers.each: { |player|
+            player<-setDeck(atdeck)
+        }
+    };
+
+    def callUno() {
+        uno := true;
+        otherPlayers.each: { |player|
+            player<-callUno(userId);
+        }
+    };
+
+    def skipTurn() {
+       cardNb := cardNb.inc();
+       turnCounter := turnCounter.inc() % otherPlayers.length;
+       nextPlayer := otherPlayers[turnCounter + 1];
+       nextPlayer<-setTurn();
+       nextPlayer<-foreignDrawCards(1);
+    };
+
+    def playCard(card) {
+        def atcard := Card.new(card.getColor(), card.getAction());
+        cardNb := cardNb.dec();
+
+        otherPlayers.each: { |player|
+            player<-cardPlayed(atcard, userId);
+        };
+
+        def players := otherPlayers + [userId];
+        def action := atcard.action.toString();
+
+        if: (action == "reverse") then: {
+            clockwise := !clockwise;
+
+            if: clockwise then: {
+                turnCounter := turnCounter.inc() % players.length;
+
+                if: (playerNb == 1) then: {
+                    turnCounter := turnCounter.inc() % players.length;
+                }
+            } else: {
+                turnCounter := turnCounter.dec() % players.length;
+
+                if: (playerNb == 1) then: {
+                    turnCounter := turnCounter.dec() % players.length;
+                }
+            };
+
+            if: (turnCounter == 0) then: {
+                gui.setTurn();
+            } else: {
+                nextPlayer := otherPlayers[turnCounter];
+                nextPlayer<-setTurn();
+            }
+        };
+
+        if: (((action == "skip").or:{action == "plus2"}).or:{action == "plus4"}) then: {
+            if: clockwise then: {
+                turnCounter := turnCounter.inc() % players.length;
+                turnCounter := turnCounter.inc() % players.length;
+            } else: {
+                turnCounter := turnCounter.dec() % players.length;
+                turnCounter := turnCounter.dec() % players.length;
+            };
+
+            if: (turnCounter == 0) then: {
+                gui.setTurn();
+            } else: {
+                nextPlayer := players[turnCounter];
+                nextPlayer<-setTurn();
+            }
+        };
+
+         if: ((((action != "skip").and: {action != "reverse"}).and: {action != "plus4"}).and: {action != "plus2"}) then: {
+            if: clockwise then: {
+                turnCounter := turnCounter.inc() % otherPlayers.length;
+            } else: {
+                turnCounter := turnCounter.dec() % otherPlayers.length;
+            };
+
+            nextPlayer := otherPlayers[turnCounter + 1];
+            nextPlayer<-setTurn();
+        }
+    }
+  };
+
+  def remoteInterface := object: {
+    def getUserId() {
+        userId
+    };
+
+    def startGame(id) {
+        if: (!startGameReqs.containsKey(id)) then: {
+            startGameReqs.put(id, true);
+            gui.makeToast("Player number " + id + " asked to start the game !");
+        };
+
+        if: (startGameReqs.size() == otherPlayers.length + 1) then: {
+            gui.startGame();
+            log("everyone agreed to start the game");
+        }
+    };
+
+    def getPoints() {
+        def cards := gui.getCards(); // pass deck.cards directly
+        def points := 0;
+        def color;
+        def action;
+        def isSpecialCard;
+
+        cards.each: { |card|
+            color := card.getColor().toString();
+            action := card.getAction().toString();
+            isSpecialCard := (((action == "skip").or:{action == "reverse"}).or:{action == "plus2"});
+
+            if: ((color != "wild").and:{!isSpecialCard}) then: {
+                def value := color.explode()[2];
+                points := points + value.toNumber();
+            };
+
+            if: (isSpecialCard) then: {
+                points := points + 20;
+            };
+
+            if: (color == "wild") then: {
+                points := points + 50;
+            }
+        };
+
+        points
+    };
+
+    def getStartTime() {
+        startTime
+    };
+
+    def setPlayerIds(idsTable) {
+        log("received player ids list");
+        playerIds := idsTable;
+
+        setPlayerPositions();
+
+    };
+
+    def callUno(id) {
+        def position := positions.get(id);
+        log("position: " + position);
+
+        if: (position == "top") then: {
+            topUno := true;
+            gui.topUnoAnimation();
+        };
+
+        if: (position == "left") then: {
+            leftUno := true;
+            gui.leftUnoAnimation();
+        };
+
+        if: (position == "right") then: {
+            rightUno := true;
+            gui.rightUnoAnimation();
+        };
+
+        /*def i := 1;
+        while: {playerIds[i] != id} do: {
+            i := i.inc();
+        };
+
+        def j := 1;
+        while: {playerIds[j] != userId} do: {
+            j := j.inc();
+        };
+
+        log("other player index: " + i + " my id index: " + j);
+
+        if: isFirst then: {
+            if: (i == 2) then: {
+                topUno := true;
+                gui.topUnoAnimation();
+            };
+
+            if: (i == 3) then: {
+                leftUno := true;
+                gui.leftUnoAnimation();
+            };
+
+            if: (i == 4) then: {
+                rightUno := true;
+                gui.rightUnoAnimation();
+            }
+        };
+
+        if: (j == 2) then: {
+            if: (i == 1) then: {
+                topUno := true;
+                gui.topUnoAnimation();
+            };
+            if: (i == 3) then: {
+                rightUno := true;
+                gui.rightUnoAnimation();
+            };
+
+            if: (i == 4) then: {
+                leftUno := true;
+                gui.leftUnoAnimation();
+            }
+        };
+
+        if: (j == 3) then: {
+            if: (i == 1) then: {
+                rightUno := true;
+                gui.rightUnoAnimation();
+            };
+
+            if: (i == 2) then: {
+                leftUno := true;
+                gui.leftUnoAnimation();
+            };
+
+            if: (i == 4) then: {
+                topUno := true;
+                gui.topUnoAnimation();
+            }
+        };
+
+        if: (j == 4) then: {
+            if: (i == 1) then: {
+                leftUno := true;
+                gui.leftUnoAnimation();
+            };
+
+            if: (i == 2) then: {
+                rightUno := true;
+                gui.rightUnoAnimation();
+            };
+
+            if: (i == 3) then: {
+                topUno := true;
+                gui.topUnoAnimation();
+            }
+        }*/
+    };
+
+    def setColor(color) {
+        gui.setColor(color);
+    };
+
+    def sendNotification(message) {
+        gui.makeToast(message);
+    };
+
+    def drawCards(nbOfCards) {
+        gui.drawCards(nbOfCards);
+        cardNb := cardNb + nbOfCards;
+        log(cardNb.toText());
+    };
+
+    def foreignDrawCards(nb) {
+        gui.foreignDrawCards(nb);
+    };
+
+    def setTurn() {
+        gui.setTurn();
+    };
+
+    def compareStartTimes(foreignStartTime) {
+        gui.compareStartTimes(foreignStartTime);
+    };
+
+    def setDeck(atdeck) {
+        log("debug set deck");
+        deck := atdeck;
+        setDeckView();
+    };
+
+    def cardPlayed(atcard, userId) {
+        gui.foreignCardPlayed(JCard.new(atcard.color, atcard.action));
+    };
+
+    def checkUno() {
+        def response := false;
+        log(cardNb.toText());
+        if: ((!uno).and:{cardNb == 1}) then: {
+            drawCards(2);
+        } else: {
+            response := true;
+        };
+
+        response;
+    };
+  };
+
+
+  def goOnline() {
+    network.online();
+
+    log("my user id: " + userId);
+
+    playerIds := playerIds + [userId];
+
+    when: Player discovered: { |player|
+        def foreignId := 0;
+        log("player discovered ! ");
+
+        when: player<-getStartTime()@FutureMessage becomes: { |timeStamp|
+            startTimes := startTimes + [timeStamp]
+        };
+
+        if: (!otherPlayers.contains(player)) then: {
+            playerNb := playerNb.inc();
+            otherPlayers := otherPlayers + [player];
+            gui.setPlayerNb(playerNb);
+
+            when: player<-getUserId()@FutureMessage becomes: { |id|
+                foreignId := id;
+                playerIds := playerIds + [id];
+                references.put(id, player);
+            };
+
+        };
+
+        whenever: player disconnected: {
+            playerNb := playerNb.dec();
+            gui.makeToast("Player " + foreignId + " disconnected ");
+
+            if: (!gameStarted) then: {
+                gui.setPlayerNb(playerNb);
+            } else: {
+
+            }
+
+        };
+
+        whenever: player reconnected: {
+            playerNb := playerNb.inc();
+            gui.makeToast("Player " + foreignId + " disconnected ");
+
+            if: (!gameStarted) then: {
+                gui.setPlayerNb(playerNb);
+            } else: {
+
+            }
+        }
+
+    };
+
+    export: remoteInterface as: Player;
+  };
+
+  goOnline();
+  gui := Android.parent.registerATApp(localInterface)
+};
+
+network.online;
+self;

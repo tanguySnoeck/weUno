@@ -1,0 +1,251 @@
+import ~.card;
+import /.at.lang.futures;
+enableFutures(false);
+
+object:{
+    def LocalWeUno := object: {
+        def weUnoParent;
+
+        def init(parent) {
+            weUnoParent := parent;
+        };
+
+        def updateGUI(newActivity) {
+            weUnoParent.gui := newActivity;
+            weUnoParent.gameStarted := true;
+            weUnoParent.setDeckView();
+
+            if: (weUnoParent.myPosition != nil) then: {
+                weUnoParent.gui.setPlayersCount(weUnoParent.myPosition)
+            }
+        };
+
+        def addStartGameRequest() {
+            weUnoParent.log("DEBUG START GAME LOCAL " + weUnoParent.startGameReqs.size() + " " + weUnoParent.otherPlayers.length + " " + weUnoParent.playerIds.length);
+            weUnoParent.startGameReqs.put(weUnoParent.userId, true);
+
+            if: ((weUnoParent.startGameReqs.size() == weUnoParent.playerIds.length).and:{weUnoParent.otherPlayers.length + 1 == weUnoParent.playerIds.length}) then: {
+                weUnoParent.startGame();
+            };
+
+            weUnoParent.otherPlayers.each: { |player|
+                player<-addStartGameRequest(weUnoParent.userId);
+            }
+        };
+
+        def addStartNewRoundReq(continues) {
+            if: (weUnoParent.startRoundReqs == weUnoParent.otherPlayers.length + 1) then: {
+                if: (weUnoParent.test <= 2) then: {
+                    weUnoParent.gui.goBackToLobby();
+                }
+            };
+
+            weUnoParent.wantsToContinue := continues;
+
+            weUnoParent.positions.clear();
+
+            weUnoParent.test := weUnoParent.test.inc();
+
+            weUnoParent.startRoundReqs := weUnoParent.startRoundReqs.inc();
+
+            weUnoParent.otherPlayers.each: { |player|
+                player<-addStartNewRoundReq(continues, weUnoParent.userId);
+            };
+
+            if: !continues then: {
+                weUnoParent.gameStarted := false;
+                weUnoParent.gui.goBackToLobby();
+            };
+
+            weUnoParent.startNewRound();
+        };
+
+        def endRound() {
+            def totalPoints := 0;
+            def i := 0;
+
+            weUnoParent.log("YOU WON THE ROUND");
+
+            weUnoParent.playerIds := weUnoParent.playerIds.filter: { |elt|
+              elt != weUnoParent.userId
+            };
+
+            weUnoParent.references.remove(weUnoParent.userId);
+
+            when: { |result|
+                def [future, resolver] := makeFuture();
+
+                weUnoParent.otherPlayers.each: { |player|
+                    when: player<-getPoints()@FutureMessage becomes: { |points|
+                        weUnoParent.log("YOU RECEIVED " + points);
+                        i := i.inc();
+                        totalPoints := totalPoints + points;
+
+                        if: (i == weUnoParent.otherPlayers.length) then: {
+                            resolver.resolve(totalPoints);
+                        };
+                    }
+                };
+
+                future
+            }.escape() @FutureMessage becomes: { |points|
+                weUnoParent.log("YOU GOT " + points + " POINTS");
+                totalPoints := points;
+                weUnoParent.gui.makeToast("You won the round with " + totalPoints + " points !");
+                weUnoParent.otherPlayers.each: { |player|
+                    player<-askToContinue("Player n°" + weUnoParent.userId.toText() + " won with " + totalPoints + "\nPlay another round ?");
+                    player<-addStartNewRoundReq(false, weUnoParent.userId);
+                };
+
+                weUnoParent.gui.goBackToLobby();
+            }
+
+        };
+
+        def setColor(color){
+            weUnoParent.otherPlayers.each: { |player|
+                player<-setColor(color)
+            }
+        };
+
+        def sendNotification(message) {
+            weUnoParent.otherPlayers.each: { |player|
+                player<-sendNotification(message);
+            }
+        };
+
+        def checkUno(position) {
+            def id := weUnoParent.positions.get(position);
+            def player := weUnoParent.references.get(id);
+
+            when: player<-checkUno()@FutureMessage becomes: { |response|
+                if: response then: {
+                    weUnoParent.gui.makeToast("Well tried")
+                } else: {
+                    weUnoParent.gui.makeToast("He got what he fucking diserved")
+                }
+            }
+        };
+
+        def makeNextPlayerDrawCards(nbOfCards) {
+            if: weUnoParent.clockwise then: {
+                weUnoParent.successor<-drawCards(nbOfCards);
+            } else: {
+                weUnoParent.predecessor<-drawCards(nbOfCards);
+            }
+        };
+
+        def setIpValue(value) {
+            weUnoParent.ipValue := value;
+        };
+
+        def broadCastDeck(deck) {
+            weUnoParent.log("BROADCAST DECK " + "first player freezing debug message");
+            def array := deck.cards.toArray();
+            def atdeck := [];
+
+            array.each: { |card|
+                def atcard := Card.new(card.getColor(), card.getAction());
+                atdeck := atdeck + [atcard];
+            };
+
+            weUnoParent.otherPlayers.each: { |player|
+                player<-setDeck(atdeck)
+            }
+        };
+
+        def callUno() {
+            weUnoParent.uno := true;
+            weUnoParent.otherPlayers.each: { |player|
+                player<-callUno(weUnoParent.userId);
+            }
+        };
+
+        def skipTurn() {
+            weUnoParent.cardNb := weUnoParent.cardNb.inc();
+
+            if: weUnoParent.clockwise then: {
+                weUnoParent.successor<-setTurn();
+            } else: {
+                weUnoParent.predecessor<-setTurn();
+            };
+
+            weUnoParent.otherPlayers.each: { |player|
+                player<-foreignDrawCards(1)
+            }
+        };
+
+        def playCard(card) {
+            def atcard := Card.new(card.getColor(), card.getAction());
+            weUnoParent.cardNb := weUnoParent.cardNb.dec();
+
+            weUnoParent.otherPlayers.each: { |player|
+                player<-cardPlayed(atcard, weUnoParent.userId);
+            };
+
+            def action := atcard.action.toString();
+
+            if: (action == "reverse") then: {
+                weUnoParent.clockwise := !weUnoParent.clockwise;
+
+                weUnoParent.otherPlayers.each: { |player|
+                    player<-setClockWise(weUnoParent.clockwise);
+                };
+
+                if: weUnoParent.playerNb == 1 then: {
+                    weUnoParent.gui.setTurn();
+                } else: {
+                    if: weUnoParent.clockwise then: {
+                        weUnoParent.successor<-setTurn();
+                    } else: {
+                        weUnoParent.predecessor<-setTurn();
+                    }
+                }
+            };
+
+            if: (((action == "skip").or:{action == "plus2"}).or:{action == "plus4"}) then: {
+                if: (weUnoParent.playerNb == 1) then: {
+                    weUnoParent.gui.setTurn();
+                } else: {
+                    def nextPlayer;
+                    def nbOfCardsToDraw := 0;
+
+                    if: (action == "plus2") then: { nbOfCardsToDraw := 2 };
+                    if: (action == "plus4") then: { nbOfCardsToDraw := 4 };
+
+                    weUnoParent.gui.foreignDrawCards(nbOfCardsToDraw);
+
+                    if: weUnoParent.clockwise then: {
+                        when: weUnoParent.successor<-getSuccessor()@FutureMessage becomes: { |nextPlayer|
+                            nextPlayer<-setTurn();
+
+                            weUnoParent.otherPlayers.each: { |player|
+                                //if: (player != nextPlayer) then: {
+                                    player<-foreignDrawCards(nbOfCardsToDraw)
+                                //}
+                            }
+                        }
+                    } else: {
+                        when: weUnoParent.predecessor<-getPredecessor()@FutureMessage becomes: { |nextPlayer|
+                            nextPlayer<-setTurn();
+
+                            weUnoParent.otherPlayers.each: { |player|
+                                //if: (player != nextPlayer) then: {
+                                    player<-foreignDrawCards(nbOfCardsToDraw)
+                                //}
+                            }
+                        }
+                    };
+                }
+            };
+
+            if: ((((action != "skip").and: {action != "reverse"}).and: {action != "plus4"}).and: {action != "plus2"}) then: {
+                if: weUnoParent.clockwise then: {
+                    weUnoParent.successor<-setTurn();
+                } else: {
+                    weUnoParent.predecessor<-setTurn();
+                }
+            }
+        };
+    }
+}

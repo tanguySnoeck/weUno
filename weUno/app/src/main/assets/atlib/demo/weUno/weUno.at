@@ -1,0 +1,250 @@
+import /.at.lang.futures exclude seconds,minutes,millisec;
+import ~.weUnoLocal;
+import ~.weUnoRemote;
+enableFutures(false);
+
+deftype Player;
+
+def makeWeUno(){
+    object:{
+        def userId := /.at.support.util.randomNumberBetween(0, 125);
+
+        def gui;
+        def otherPlayers := [];
+        def playerIds := [userId];
+        //def playerIds := [];
+        def startGameReqs := jlobby.java.util.HashMap.new(4);
+        def ipValue;
+        def receivedIdList := false;
+        def isFirst := false;
+        // I must use it in the playcard method to determine turns
+        def references := jlobby.java.util.HashMap.new(4);
+        def positions := jlobby.org.apache.commons.collections4.bidimap.DualLinkedHashBidiMap.new();
+        def uno := false;
+        def cardNb := 3;
+        def deck := nil;
+        def playerNb := 0;
+        def gameStarted := false;
+        def JCard := jlobby.edu.vub.at.weuno.Card;
+        def myPosition;
+        def ipValues := [];
+        def predecessor;
+        def successor;
+        def myIndex;
+        def wantsToContinue;
+        def test := 0;
+        def startRoundReqs := 0;
+        def clockwise := true;
+
+        def local := LocalWeUno.new(self);
+
+        def remote := RemoteWeUno.new(self);
+        export: remote as: Player;
+
+        def log(text) {
+            Android.Log.i("weUno", text);
+        };
+
+        def startGame() {
+            log("DEBUG STARTING GAME");
+            isFirst := gui.compareIpValues(ipValues);
+
+            if: isFirst then:{
+                log("is first, sending everyone my list of ids");
+                setPlayerPositions();
+
+                otherPlayers.each: { |player|
+                    player<-setPlayerIds(playerIds)
+                };
+            };
+
+            gui.startGame();
+
+            log("everyone agreed to start the game");
+        };
+
+        def setNeighbours() {
+            successor := references.get(playerIds[(myIndex % playerIds.length) + 1]);
+            log("SUCCESOR ID " + playerIds[(myIndex % playerIds.length) + 1]);
+
+            if: playerNb != 1 then: {
+                def predId := (myIndex - 2) % playerIds.length;
+
+                if: predId < 0 then: {
+                    predId := predId + playerIds.length;
+                };
+
+                predId := predId.inc();
+
+                predecessor := references.get(playerIds[predId]);
+                log("PREDESSOR ID " + playerIds[predId]);
+            };
+        };
+
+        def startNewRound() {
+            if: (startRoundReqs == otherPlayers.length + 1) then: {
+                if: ((test >= 2).and:{wantsToContinue}) then: {//startNewRound for real and set new first player
+                    log("STARTING NEW ROUND");
+                    references.get(playerIds[1])<-setFirst(true);
+                    setPlayerPositions();
+                    gui.setPlayersCount(myPosition);
+                    gui.startNewRound();
+                } else: {
+                    gameStarted := false;
+                    gui.goBackToLobby();
+                }
+            }
+        };
+
+        def setPlayerPositions() {
+            log("SET PLAYERS POSITIONS");
+            def i := 1;
+
+            while: {playerIds[i] != userId} do: {
+                i := i.inc();
+            };
+
+            myIndex := i;
+
+            setNeighbours();
+
+            if: (i == 1) then: {
+                myPosition := "bottom";
+                positions.put("bottom", playerIds[1]);
+                positions.put("left", playerIds[2]);
+
+                if: playerNb > 2 then: {
+                    positions.put("top", playerIds[3]);
+                };
+
+                if: playerNb == 4 then: {
+                    positions.put("right", playerIds[4]);
+                }
+            };
+
+            if: (i == 2) then: {
+                myPosition := "left";
+                positions.put("right", playerIds[1]);
+                positions.put("left", playerIds[2]);
+
+                if: playerNb > 2 then: {
+                    positions.put("left", playerIds[3]);
+                };
+
+                if: playerNb == 4 then: {
+                    positions.put("top", playerIds[4]);
+                }
+            };
+
+            if: (i == 3) then: {
+                myPosition := "top";
+                positions.put("top", playerIds[1]);
+                positions.put("right", playerIds[2]);
+
+                if: playerNb > 2 then: {
+                    positions.put("bottom", playerIds[3]);
+                };
+
+                if: playerNb == 4 then: {
+                    positions.put("left", playerIds[4]);
+                }
+            };
+
+            if: (i == 4) then: {
+                myPosition := "right";
+                positions.put("left", playerIds[1]);
+                positions.put("top", playerIds[2]);
+
+                if: playerNb > 2 then: {
+                    positions.put("right", playerIds[3]);
+                };
+
+                if: playerNb == 4 then: {
+                    positions.put("bottom", playerIds[4]);
+                }
+            };
+
+            if: gameStarted then: {
+                gui.setPlayersCount(myPosition);
+            };
+
+          };
+
+        def setDeckView() {
+            log("set deck view");
+            if: ((deck != nil).and:{gameStarted}) then: {
+                log("actually setting deck");
+
+                def jcards := [];
+
+                deck.each:{ |c|
+                    def card := JCard.new(c.color, c.action);
+                    jcards := jcards + [card];
+                };
+
+                gui.setDeck(jcards);
+            };
+        };
+
+        log("MY USER ID " + userId);
+
+        whenever: Player discovered: { |player|
+            log("PLAYER DISCOVERED");
+            when: player<-getIpValue()@FutureMessage becomes: { |value|
+                ipValues := ipValues + [value];
+            };
+
+            if: (!otherPlayers.contains(player)) then: {
+                playerNb := playerNb.inc();
+                otherPlayers := otherPlayers + [player];
+
+                gui.setPlayerNb(playerNb);
+
+                when: player<-getUserId()@FutureMessage becomes: { |id|
+                    log("new id added " + id);
+
+                    if: !receivedIdList then: {
+                        playerIds := playerIds + [id];
+                    };
+
+                    references.put(id, player);
+
+                    if: ((references.size() + 1 == playerIds.length).and:{receivedIdList}) then: {
+                        setNeighbours();
+                    };
+
+                    if: ((startGameReqs.size() == playerIds.length).and:{otherPlayers.length + 1 == playerIds.length}) then: {
+                        startGame();
+                    };
+
+                    whenever: player disconnected: {
+                        playerNb := playerNb.dec();
+                        gui.makeToast("Player " + id + " disconnected ");
+
+                        if: (!gameStarted) then: {
+                            gui.setPlayerNb(playerNb);
+                        } else: {
+
+                        }
+                    };
+
+                    whenever: player reconnected: {
+                        playerNb := playerNb.inc();
+                        //gui.makeToast("Player " + id + " disconnected ");
+
+                        if: (!gameStarted) then: {
+                            //gui.setPlayerNb(playerNb);
+                        } else: {
+
+                        }
+                    }
+                };
+            };
+        };
+
+        gui := Android.parent.registerATApp(local);
+    }
+};
+
+network.online();
+self

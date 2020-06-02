@@ -1,0 +1,48 @@
+import /.at.unit.test;
+import /.at.support.timer;
+import /.at.lang.futures exclude seconds,minutes,millisec;
+
+enableFutures(false);
+
+def weUnoTest(){
+    extend: UnitTest.new("weUnoTest", false) with: {
+        def testAsyncSetPlayerPositions() {
+            //def instance1 := ~.weUno.makeWeUno();
+            //def instance2 := ~.weUno.makeWeUno();
+
+            def instance1 := actor: {
+                def weUno := ~.weUno.makeWeUno();
+
+                def getPlayersIds() {
+                    weUno.playerNb
+                }
+            };
+
+            def instance2 := actor: {
+                def weUno := ~.weUno.makeWeUno();
+
+                def getPlayersIds() {
+                    weUno.playerIds
+                }
+            };
+
+            def [fut, res] := makeFuture();
+
+            when: 10.seconds elapsed: {
+                when: instance1<-getPlayersIds()@FutureMessage becomes: { |playerNb|
+                    try: {
+                        system.println(playerNb.toText());
+                        self.assertTrue(playerNb == 1);
+                        res.resolve(`ok);
+                    } catch: { |error|
+                        res.ruin(error)
+                    }
+                };
+            };
+
+            fut
+        };
+    };
+};
+
+weUnoTest().runTest()
