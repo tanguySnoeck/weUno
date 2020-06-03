@@ -1,8 +1,9 @@
-import /.at.lang.futures exclude seconds,minutes,millisec;
+import /.at.lang.leasedrefs;
+import /.at.lang.futures;
 enableFutures(false);
+import /.at.lang.leasedrefs exclude minutes, seconds, millisec;
 
 object: {
-
     def RemoteWeUno := object: {
         def weUnoParent;
         def topUno := false;
@@ -13,157 +14,176 @@ object: {
             weUnoParent := parent;
         };
 
+        def openSession() {
+            def session := renewOnCallLease: minutes(5) for: (object: {
+
+            })
+
+        };
+
         def getUserId() {
             weUnoParent.userId
         };
 
-        def setClockWise(clockwiseChange) {
-            weUnoParent.clockwise := clockwiseChange;
-        };
+                def addStartNewRoundReq(continues, id) {
+                    weUnoParent.startRoundReqs := weUnoParent.startRoundReqs.inc();
 
-        def addStartNewRoundReq(continues, id) {
-            weUnoParent.startRoundReqs := weUnoParent.startRoundReqs.inc();
+                    if: !continues then: {// remove id from playerIds, reference from otherPlayers
+                        weUnoParent.playerIds := weUnoParent.playerIds.filter: { |elt|
+                          elt != id
+                        };
 
-            if: !continues then: {// remove id from playerIds, reference from otherPlayers
-                weUnoParent.playerIds := weUnoParent.playerIds.filter: { |elt|
-                  elt != id
+                        weUnoParent.references.remove(id);
+                    } else: {
+                        weUnoParent.test := weUnoParent.test.inc();
+                    };
+
+                    weUnoParent.log("NB OF PEOPLE WHO WANNA CONTINUE " + weUnoParent.test.toText());
+
+                    weUnoParent.startNewRound();
                 };
 
-                weUnoParent.references.remove(id);
-            } else: {
-                weUnoParent.test := weUnoParent.test.inc();
-            };
-
-            weUnoParent.log("NB OF PEOPLE WHO WANNA CONTINUE " + weUnoParent.test.toText());
-
-            weUnoParent.startNewRound();
-        };
-
-        def getSuccessor() {
-            weUnoParent.successor;
-        };
-
-        def getPredecessor() {
-            weUnoParent.predecessor;
-        };
-
-        def setFirst(isFirst) {
-            weUnoParent.gui.setFirst(true);
-        };
-
-        def addStartGameRequest(id) {
-            if: (!weUnoParent.startGameReqs.containsKey(id)) then: {
-                weUnoParent.startGameReqs.put(id, true);
-                weUnoParent.gui.makeToast("Player number " + id + " asked to start the game !");
-            };
-
-            weUnoParent.log("DEBUG START GAME REMOTE" + weUnoParent.startGameReqs.size() + " " + weUnoParent.otherPlayers.length + " " + weUnoParent.playerIds.length);
-
-            if: ((weUnoParent.startGameReqs.size() == weUnoParent.playerIds.length).and:{weUnoParent.otherPlayers.length + 1 == weUnoParent.playerIds.length}) then: {
-                weUnoParent.startGame();
-            }
-        };
-
-        def getPoints() {
-            def cards := weUnoParent.gui.getCards(); // pass deck.cards directly
-            def points := 0;
-            def color;
-            def action;
-            def isSpecialCard;
-
-            cards.each: { |card|
-                color := card.getColor().toString();
-                action := card.getAction().toString();
-                isSpecialCard := (((action == "skip").or:{action == "reverse"}).or:{action == "plus2"});
-
-                if: ((color != "wild").and:{!isSpecialCard}) then: {
-                    def value := color.explode()[2];
-                    points := points + value.toNumber();
+                def getSuccessor() {
+                    weUnoParent.successor;
                 };
 
-                if: (isSpecialCard) then: {
-                    points := points + 20;
+                def getPredecessor() {
+                    weUnoParent.predecessor;
                 };
 
-                if: (color == "wild") then: {
-                    points := points + 50;
-                }
-            };
+                def setFirst(isFirst) {
+                    weUnoParent.gui.setFirst(true);
+                };
 
-            points
-        };
+                def addStartGameRequest(id) {
+                    if: (!weUnoParent.startGameReqs.containsKey(id)) then: {
+                        weUnoParent.startGameReqs.put(id, true);
+                        weUnoParent.gui.makeToast("Player number " + id + " asked to start the game !");
+                    };
 
-        def getIpValue() {
-            weUnoParent.ipValue
-        };
+                    weUnoParent.log("DEBUG START GAME REMOTE" + weUnoParent.startGameReqs.size() + " " + weUnoParent.otherPlayers.length + " " + weUnoParent.playerIds.length);
 
-        def setPlayerIds(idsTable) {
-            weUnoParent.receivedIdList := true;
+                    if: ((weUnoParent.startGameReqs.size() == weUnoParent.playerIds.length).and:{weUnoParent.otherPlayers.length + 1 == weUnoParent.playerIds.length}) then: {
+                        weUnoParent.startGame();
+                    }
+                };
 
-            weUnoParent.log("received player ids list");
-            weUnoParent.playerIds := idsTable;
+                def getPoints() {
+                    def cards := weUnoParent.gui.getCards(); // pass deck.cards directly
+                    def points := 0;
+                    def color;
+                    def action;
+                    def isSpecialCard;
 
-            weUnoParent.setPlayerPositions();
+                    cards.each: { |card|
+                        color := card.getColor().toString();
+                        action := card.getAction().toString();
+                        isSpecialCard := (((action == "skip").or:{action == "reverse"}).or:{action == "plus2"});
 
-            weUnoParent.startGame();
-        };
+                        if: ((color != "wild").and:{!isSpecialCard}) then: {
+                            def value := color.explode()[2];
+                            points := points + value.toNumber();
+                        };
 
-        def callUno(id) {
-            def position := weUnoParent.positions.getKey(id);
+                        if: (isSpecialCard) then: {
+                            points := points + 20;
+                        };
 
-            if: (position == "top") then: {
-                topUno := true;
-                weUnoParent.gui.topUnoAnimation();
-            };
+                        if: (color == "wild") then: {
+                            points := points + 50;
+                        }
+                    };
 
-            if: (position == "left") then: {
-                leftUno := true;
-                weUnoParent.gui.leftUnoAnimation();
-            };
+                    points
+                };
 
-            if: (position == "right") then: {
-                rightUno := true;
-                weUnoParent.gui.rightUnoAnimation();
-            };
-        };
+                def getIpValue() {
+                    weUnoParent.ipValue
+                };
 
-        def setColor(color) {
-            weUnoParent.gui.setColor(color);
-        };
+                def setPlayerIds(idsTable) {
+                    weUnoParent.receivedIdList := true;
 
-        def sendNotification(message) {
-            weUnoParent.gui.makeToast(message);
-        };
+                    weUnoParent.playerIds := idsTable;
 
-        def askToContinue(points) {
-            weUnoParent.log("GOT ASKED TO CONTINUE");
-            weUnoParent.gui.askToContinue(points);
-        };
+                    weUnoParent.setPlayerPositions();
 
-        def drawCards(nbOfCards) {
-            weUnoParent.gui.drawCards(nbOfCards);
-            weUnoParent.cardNb := weUnoParent.cardNb + nbOfCards;
-        };
+                    weUnoParent.startGame();
+                };
 
-        def foreignDrawCards(nb) {
-            weUnoParent.gui.foreignDrawCards(nb);
-        };
+                def callUno(id) {
+                    def position := weUnoParent.positions.getKey(id);
+
+                    if: (position == "top") then: {
+                        topUno := true;
+                        weUnoParent.gui.topUnoAnimation();
+                    };
+
+                    if: (position == "left") then: {
+                        leftUno := true;
+                        weUnoParent.gui.leftUnoAnimation();
+                    };
+
+                    if: (position == "right") then: {
+                        rightUno := true;
+                        weUnoParent.gui.rightUnoAnimation();
+                    };
+                };
+
+                def setColor(color) {
+                    weUnoParent.gui.setColor(color);
+                };
+
+                def sendNotification(message) {
+                    weUnoParent.gui.makeToast(message);
+                };
+
+                def askToContinue(points) {
+                    weUnoParent.log("GOT ASKED TO CONTINUE");
+                    weUnoParent.gui.askToContinue(points);
+                };
+
+                def drawCards(nbOfCards) {
+                    weUnoParent.gui.drawCards(nbOfCards);
+                    weUnoParent.cardNb := weUnoParent.cardNb + nbOfCards;
+                };
+
+                def foreignDrawCards(nb) {
+                    weUnoParent.gui.foreignDrawCards(nb);
+                };
+
+                def setTurn() {
+                    weUnoParent.log("SET TURN");
+                    weUnoParent.gui.setTurn();
+                };
+
+                def compareIpValues(foreignIpValue) {
+                    weUnoParent.gui.compareIpValues(foreignIpValue);
+                };
+
+                def setDeck(atdeck) {
+                    weUnoParent.log("SET DECK");
+                    weUnoParent.deck := atdeck;
+                    weUnoParent.setDeckView();
+                };
 
         def setTurn() {
             weUnoParent.log("SET TURN");
-            weUnoParent.gui.setTurn(true);
+            weUnoParent.gui.setTurn();
         };
 
-        def compareIpValues(foreignIpValue) {
-            weUnoParent.gui.compareIpValues(foreignIpValue);
-        };
+                def checkUno() {
+                    def response := false;
 
-        def setDeck(atdeck) {
-            weUnoParent.log("SET DECK");
-            weUnoParent.deck := atdeck;
-            weUnoParent.setDeckView();
-        };
+                    if: ((!weUnoParent.uno).and:{weUnoParent.cardNb == 1}) then: {
+                        drawCards(2);
+                    } else: {
+                        response := true;
+                    };
 
+                    response;
+                };
+            };
         def cardPlayed(atcard, userId) {
             if: ((atcard.color == "wild")) then: {
                 weUnoParent.gui.setTurn(false);
@@ -171,16 +191,12 @@ object: {
             weUnoParent.gui.foreignCardPlayed(weUnoParent.JCard.new(atcard.color, atcard.action));
         };
 
-        def checkUno() {
-            def response := false;
-
-            if: ((!weUnoParent.uno).and:{weUnoParent.cardNb == 1}) then: {
-                drawCards(2);
-            } else: {
-                response := true;
+            when: session expired: {
+                weUnoParent.log("session expired");
             };
 
-            response;
+            session
         };
     };
 }
+

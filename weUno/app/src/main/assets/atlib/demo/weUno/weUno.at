@@ -1,7 +1,7 @@
-import /.at.lang.futures exclude seconds,minutes,millisec;
+import /.at.lang.futures;
 import ~.weUnoLocal;
 import ~.weUnoRemote;
-enableFutures(false);
+import /.at.lang.leasedrefs exclude minutes, seconds, millisec;
 
 deftype Player;
 
@@ -12,12 +12,10 @@ def makeWeUno(){
         def gui;
         def otherPlayers := [];
         def playerIds := [userId];
-        //def playerIds := [];
         def startGameReqs := jlobby.java.util.HashMap.new(4);
         def ipValue;
         def receivedIdList := false;
         def isFirst := false;
-        // I must use it in the playcard method to determine turns
         def references := jlobby.java.util.HashMap.new(4);
         def positions := jlobby.org.apache.commons.collections4.bidimap.DualLinkedHashBidiMap.new();
         def uno := false;
@@ -46,8 +44,9 @@ def makeWeUno(){
         };
 
         def startGame() {
-            log("DEBUG STARTING GAME");
-            isFirst := gui.compareIpValues(ipValues);
+            if: !gameStarted then:{
+                isFirst := gui.compareIpValues(ipValues);
+            };
 
             if: isFirst then:{
                 log("is first, sending everyone my list of ids");
@@ -65,7 +64,6 @@ def makeWeUno(){
 
         def setNeighbours() {
             successor := references.get(playerIds[(myIndex % playerIds.length) + 1]);
-            log("SUCCESOR ID " + playerIds[(myIndex % playerIds.length) + 1]);
 
             if: playerNb != 1 then: {
                 def predId := (myIndex - 2) % playerIds.length;
@@ -77,14 +75,12 @@ def makeWeUno(){
                 predId := predId.inc();
 
                 predecessor := references.get(playerIds[predId]);
-                log("PREDESSOR ID " + playerIds[predId]);
             };
         };
 
         def startNewRound() {
             if: (startRoundReqs == otherPlayers.length + 1) then: {
                 if: ((test >= 2).and:{wantsToContinue}) then: {//startNewRound for real and set new first player
-                    log("STARTING NEW ROUND");
                     references.get(playerIds[1])<-setFirst(true);
                     setPlayerPositions();
                     gui.setPlayersCount(myPosition);
@@ -167,8 +163,7 @@ def makeWeUno(){
             if: gameStarted then: {
                 gui.setPlayersCount(myPosition);
             };
-
-          };
+        };
 
         def setDeckView() {
             log("set deck view");
@@ -190,55 +185,91 @@ def makeWeUno(){
 
         whenever: Player discovered: { |player|
             log("PLAYER DISCOVERED");
-            when: player<-getIpValue()@FutureMessage becomes: { |value|
-                ipValues := ipValues + [value];
-            };
 
-            if: (!otherPlayers.contains(player)) then: {
-                playerNb := playerNb.inc();
-                otherPlayers := otherPlayers + [player];
+            when: player<-openSession()@FutureMessage becomes: { |session|
+                log("SESSION OPENED");
 
-                gui.setPlayerNb(playerNb);
-
-                when: player<-getUserId()@FutureMessage becomes: { |id|
-                    log("new id added " + id);
-
-                    if: !receivedIdList then: {
-                        playerIds := playerIds + [id];
-                    };
-
-                    references.put(id, player);
-
-                    if: ((references.size() + 1 == playerIds.length).and:{receivedIdList}) then: {
-                        setNeighbours();
-                    };
-
-                    if: ((startGameReqs.size() == playerIds.length).and:{otherPlayers.length + 1 == playerIds.length}) then: {
-                        startGame();
-                    };
-
-                    whenever: player disconnected: {
-                        playerNb := playerNb.dec();
-                        gui.makeToast("Player " + id + " disconnected ");
-
-                        if: (!gameStarted) then: {
-                            gui.setPlayerNb(playerNb);
-                        } else: {
-
-                        }
-                    };
-
-                    whenever: player reconnected: {
-                        playerNb := playerNb.inc();
-                        //gui.makeToast("Player " + id + " disconnected ");
-
-                        if: (!gameStarted) then: {
-                            //gui.setPlayerNb(playerNb);
-                        } else: {
-
-                        }
-                    }
+                when: session<-getIpValue()@FutureMessage becomes: { |value|
+                    ipValues := ipValues + [value];
                 };
+
+                if: (!otherPlayers.contains(session)) then: {
+                    playerNb := playerNb.inc();
+                    otherPlayers := otherPlayers + [session];
+
+                    gui.setPlayerNb(playerNb);
+
+                    when: session<-getUserId()@FutureMessage becomes: { |id|
+                        log("new id added " + id);
+
+                        if: !receivedIdList then: {
+                            playerIds := playerIds + [id];
+                        };
+
+                        references.put(id, session);
+
+                        if: ((references.size() + 1 == playerIds.length).and:{receivedIdList}) then: {// replace and by or ?
+                            setNeighbours();
+                        };
+
+                        if: ((startGameReqs.size() == playerIds.length).and:{otherPlayers.length + 1 == playerIds.length}) then: {
+                            startGame();
+                        };
+
+                        whenever: player disconnected: {
+                            playerNb := playerNb.dec();
+                            gui.makeToast("Player " + id + " disconnected ");
+
+                            if: (!gameStarted) then: {
+                                gui.setPlayerNb(playerNb);
+                            }
+                        };
+
+                        whenever: player reconnected: {
+                            playerNb := playerNb.inc();
+                            gui.makeToast("Player " + id + " disconnected ");
+
+                            if: (!gameStarted) then: {
+                                gui.setPlayerNb(playerNb);
+                            }
+                        };
+
+                        when: session expired: { // player who's been afk for too long gets put back in lobby
+                            //we've been waiting for the player for a long time
+                            //if the game started we can remove him from the game and continue without the player
+
+                            //that means that we should remove his id from playerIds and his ref from otherPlayers
+                            //remove his cards from the view
+                            // if it was his turn it needs to go to next player
+
+                            //if you were only two players the remaining one goes back to lobby
+
+                            log("SESSION EXPIRED");
+
+                            if: gameStarted then: {
+                                playerIds := playerIds.filter: { |elt|
+                                    elt != id
+                                };
+
+                                /*otherPlayers := otherPlayers.filter: { |elt|
+                                    session.toString() != elt.toString()
+                                };*/
+
+                                if: (playerIds.length == 1) then: {
+                                    gameStarted := false;
+                                    gui.goBackToLobby();
+                                } else: {
+                                    setPlayerPositions();
+                                    gui.setPlayersCount(myPosition);
+                                    references.get(playerIds[1])<-setTurn(); // the turn goes back to the first player
+                                }
+                            }
+
+                        };
+                    };
+                };
+            } catch: TimeoutException using: { |e|
+                log(e.message);
             };
         };
 

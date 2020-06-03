@@ -20,4 +20,5 @@ public interface ATWeUno {
     void checkUno(String position);
     void endRound();
     void addStartNewRoundReq(boolean continues);
+    void setUno(boolean calledUno);
 }

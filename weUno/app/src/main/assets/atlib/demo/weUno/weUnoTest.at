@@ -1,15 +1,11 @@
 import /.at.unit.test;
 import /.at.support.timer;
 import /.at.lang.futures exclude seconds,minutes,millisec;
-
 enableFutures(false);
 
 def weUnoTest(){
     extend: UnitTest.new("weUnoTest", false) with: {
-        def testAsyncSetPlayerPositions() {
-            //def instance1 := ~.weUno.makeWeUno();
-            //def instance2 := ~.weUno.makeWeUno();
-
+        def testAsyncSetPlayerDisovery() {
             def instance1 := actor: {
                 def weUno := ~.weUno.makeWeUno();
 
@@ -32,7 +28,7 @@ def weUnoTest(){
                 when: instance1<-getPlayersIds()@FutureMessage becomes: { |playerNb|
                     try: {
                         system.println(playerNb.toText());
-                        self.assertTrue(playerNb == 1);
+                        self.assertEquals(playerNb, 1);
                         res.resolve(`ok);
                     } catch: { |error|
                         res.ruin(error)

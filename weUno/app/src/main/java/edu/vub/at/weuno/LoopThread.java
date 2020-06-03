@@ -67,6 +67,10 @@ public class LoopThread extends Thread implements ATMessages{
                     atWeUno.setIpValue((int)message.obj);
                     break;
                 }
+                case _SET_UNO_: {
+                    atWeUno.setUno((boolean)message.obj);
+                    break;
+                }
             }
         }
     };
