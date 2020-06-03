@@ -193,7 +193,7 @@ object:{
                 };
 
                 if: weUnoParent.playerNb == 1 then: {
-                    weUnoParent.gui.setTurn();
+                    weUnoParent.gui.setTurn(true);
                 } else: {
                     if: weUnoParent.clockwise then: {
                         weUnoParent.successor<-setTurn();
@@ -204,8 +204,9 @@ object:{
             };
 
             if: (((action == "skip").or:{action == "plus2"}).or:{action == "plus4"}) then: {
+                //si c'est pas mon tour mais que je joue qd mm une wild card, celui à qui c'était le tour normalement ne dois plus pouvoir jouer .
                 if: (weUnoParent.playerNb == 1) then: {
-                    weUnoParent.gui.setTurn();
+                    weUnoParent.gui.setTurn(true);
                 } else: {
                     def nextPlayer;
                     def nbOfCardsToDraw := 0;

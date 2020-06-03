@@ -204,7 +204,9 @@ public class GameActivity extends AppCompatActivity implements HandAction, ATMes
 
                 do {
                     topCard = cardDeck.peekTopCard();
-                } while (topCard.getColor().toString().equals("wild"));
+                    Log.i("DEBUG", topCard.getAction().toString());
+                }while(!topCard.getAction().toString().equals("skip") || !topCard.getAction().toString().equals("reverse"));
+                    //} while (topCard.getColor().toString().equals("wild"));
 
                 String action = topCard.getAction().toString();
                 drawingview.playCard(topCard);
@@ -280,8 +282,8 @@ public class GameActivity extends AppCompatActivity implements HandAction, ATMes
         }
     }
 
-    public void setTurn() {
-        itsMyTurn = true;
+    public void setTurn(boolean itsMyTurn) {
+        this.itsMyTurn = itsMyTurn;
         Log.i("DEBUG", "IT S MY TURN ");
         makeToast("It's your turn !");
     }

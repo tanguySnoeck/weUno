@@ -1,5 +1,4 @@
-import /.at.lang.leasedrefs;
-import /.at.lang.futures;
+import /.at.lang.futures exclude seconds,minutes,millisec;
 enableFutures(false);
 
 object: {
@@ -12,13 +11,6 @@ object: {
 
         def init(parent) {
             weUnoParent := parent;
-        };
-
-        def openSession() {
-            def session := renewOnCallLease: minutes(5) for: (object: {
-
-            })
-
         };
 
         def getUserId() {
@@ -159,7 +151,7 @@ object: {
 
         def setTurn() {
             weUnoParent.log("SET TURN");
-            weUnoParent.gui.setTurn();
+            weUnoParent.gui.setTurn(true);
         };
 
         def compareIpValues(foreignIpValue) {
@@ -173,6 +165,9 @@ object: {
         };
 
         def cardPlayed(atcard, userId) {
+            if: ((atcard.color == "wild")) then: {
+                weUnoParent.gui.setTurn(false);
+            };
             weUnoParent.gui.foreignCardPlayed(weUnoParent.JCard.new(atcard.color, atcard.action));
         };
 
