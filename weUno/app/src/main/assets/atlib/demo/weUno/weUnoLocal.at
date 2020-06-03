@@ -44,8 +44,6 @@ object:{
 
             weUnoParent.positions.clear();
 
-            weUnoParent.test := weUnoParent.test.inc();
-
             weUnoParent.startRoundReqs := weUnoParent.startRoundReqs.inc();
 
             weUnoParent.otherPlayers.each: { |player|
@@ -55,6 +53,8 @@ object:{
             if: !continues then: {
                 weUnoParent.gameStarted := false;
                 weUnoParent.gui.goBackToLobby();
+            } else: {
+                weUnoParent.test := weUnoParent.test.inc();
             };
 
             weUnoParent.startNewRound();
@@ -64,10 +64,8 @@ object:{
             def totalPoints := 0;
             def i := 0;
 
-            weUnoParent.log("YOU WON THE ROUND");
-
-            weUnoParent.playerIds := weUnoParent.playerIds.filter: { |elt|
-              elt != weUnoParent.userId
+            weUnoParent.playerIds := weUnoParent.playerIds.filter: { |id|
+              id != weUnoParent.userId
             };
 
             weUnoParent.references.remove(weUnoParent.userId);
@@ -77,7 +75,6 @@ object:{
 
                 weUnoParent.otherPlayers.each: { |player|
                     when: player<-getPoints()@FutureMessage becomes: { |points|
-                        weUnoParent.log("YOU RECEIVED " + points);
                         i := i.inc();
                         totalPoints := totalPoints + points;
 
@@ -89,7 +86,6 @@ object:{
 
                 future
             }.escape() @FutureMessage becomes: { |points|
-                weUnoParent.log("YOU GOT " + points + " POINTS");
                 totalPoints := points;
                 weUnoParent.gui.makeToast("You won the round with " + totalPoints + " points !");
                 weUnoParent.otherPlayers.each: { |player|
@@ -99,7 +95,6 @@ object:{
 
                 weUnoParent.gui.goBackToLobby();
             }
-
         };
 
         def setColor(color){
@@ -140,7 +135,6 @@ object:{
         };
 
         def broadCastDeck(deck) {
-            weUnoParent.log("BROADCAST DECK " + "first player freezing debug message");
             def array := deck.cards.toArray();
             def atdeck := [];
 
@@ -159,6 +153,10 @@ object:{
             weUnoParent.otherPlayers.each: { |player|
                 player<-callUno(weUnoParent.userId);
             }
+        };
+
+        def setUno(calledUno) {
+            weUnoParent.uno := calledUno;
         };
 
         def skipTurn() {
@@ -240,7 +238,9 @@ object:{
             };
 
             if: ((((action != "skip").and: {action != "reverse"}).and: {action != "plus4"}).and: {action != "plus2"}) then: {
-                if: weUnoParent.clockwise then: {
+                weUnoParent.log("ok");
+                if: ((weUnoParent.clockwise).or:{weUnoParent.playerNb == 1}) then: {
+                    weUnoParent.log("this should work debug test");
                     weUnoParent.successor<-setTurn();
                 } else: {
                     weUnoParent.predecessor<-setTurn();

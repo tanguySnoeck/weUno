@@ -28,7 +28,7 @@ def weUnoTest(){
                 when: instance1<-getPlayersIds()@FutureMessage becomes: { |playerNb|
                     try: {
                         system.println(playerNb.toText());
-                        self.assertTrue(playerNb == 1);
+                        self.assertEquals(playerNb, 1);
                         res.resolve(`ok);
                     } catch: { |error|
                         res.ruin(error)

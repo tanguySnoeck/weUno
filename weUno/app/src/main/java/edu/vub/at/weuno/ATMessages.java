@@ -15,4 +15,5 @@ public interface ATMessages {
     int _END_ROUND_ = 11;
     int _START_NEW_ROUND_ = 12;
     int _SET_IP_VALUE_ = 13;
+    int _SET_UNO_ = 14;
 }

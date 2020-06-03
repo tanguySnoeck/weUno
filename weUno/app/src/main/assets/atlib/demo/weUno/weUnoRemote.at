@@ -13,17 +13,10 @@ object: {
             weUnoParent := parent;
         };
 
-        def printStuff(stuff) {
-            weUnoParent.log(stuff);
-
-            "ARTHUR"
-        };
-
         def openSession() {
             weUnoParent.log("OPENING SESSION");
 
-            def session := renewOnCallLease: minutes(55) for: object: {
-                weUnoParent.log("DEBUG");
+            def session := renewOnCallLease: minutes(50) for: object: {
 
                 def getUserId() {
                     weUnoParent.userId
@@ -112,7 +105,6 @@ object: {
                 def setPlayerIds(idsTable) {
                     weUnoParent.receivedIdList := true;
 
-                    weUnoParent.log("received player ids list");
                     weUnoParent.playerIds := idsTable;
 
                     weUnoParent.setPlayerPositions();
@@ -201,3 +193,4 @@ object: {
         };
     };
 }
+

@@ -144,7 +144,14 @@ public class GameActivity extends AppCompatActivity implements HandAction, ATMes
                 adapter.addCard(cardDeck.drawCard());
         });
 
-        btnUno.setVisibility(adapter.getItemCount() < 2 ? View.VISIBLE : View.INVISIBLE);
+        if (adapter.getItemCount() < 2 ) {
+            btnUno.setVisibility(View.VISIBLE);
+        } else {
+            btnUno.setVisibility(View.INVISIBLE);
+            handler.sendMessage(Message.obtain(handler, _SET_UNO_, false));
+        }
+
+        //btnUno.setVisibility(adapter.getItemCount() < 2 ? View.VISIBLE : View.INVISIBLE);
     }
 
     public void setFirst(boolean isFirst) {
@@ -346,7 +353,14 @@ public class GameActivity extends AppCompatActivity implements HandAction, ATMes
             handler.sendMessage(Message.obtain(handler, _END_ROUND_));
         }
 
-        btnUno.setVisibility(adapter.getItemCount() < 2 ? View.VISIBLE : View.INVISIBLE);
+        if (adapter.getItemCount() < 2 ) {
+            btnUno.setVisibility(View.VISIBLE);
+        } else {
+            btnUno.setVisibility(View.INVISIBLE);
+            handler.sendMessage(Message.obtain(handler, _SET_UNO_, false));
+        }
+
+        //btnUno.setVisibility(adapter.getItemCount() < 2 ? View.VISIBLE : View.INVISIBLE);
         drawingview.invalidate();
         Log.i("DEBUG", "CARD PLAYED");
 
